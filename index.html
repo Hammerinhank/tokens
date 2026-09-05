@@ -133,6 +133,34 @@
   }
   .lien-gh:hover { background: rgba(79,217,128,0.1); }
   .lien-gh small { display: block; color: var(--text-dim); font-size: 0.72rem; margin-top: 3px; }
+
+  /* ---- Post-it d'aide (survol immobile de 3 s, souris uniquement) ---- */
+  #postit {
+    position: fixed;
+    z-index: 60;
+    display: none;
+    max-width: 300px;
+    background: #fdf6b2;
+    color: #2b2a12;
+    border: 1px solid #d9cf6a;
+    border-radius: 3px;
+    padding: 11px 13px;
+    box-shadow: 3px 5px 14px rgba(0,0,0,0.55);
+    transform: rotate(-0.6deg);
+    font-family: var(--mono);
+    pointer-events: none;
+  }
+  #postit.show { display: block; }
+  #postit .pt-titre {
+    font-weight: 800;
+    font-size: 0.82rem;
+    margin-bottom: 5px;
+    letter-spacing: 0.02em;
+  }
+  #postit .pt-texte {
+    font-size: 0.76rem;
+    line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -242,7 +270,7 @@
 
 <script>
   // ---- Version : à incrémenter à chaque évolution ----
-  const APP_VERSION = "1.1.0";
+  const APP_VERSION = "1.2.0";
   document.getElementById("badge-version").textContent = "v" + APP_VERSION;
   document.getElementById("origine").textContent = location.origin;
 
@@ -605,6 +633,104 @@
       setStatut($("statut-diag"), "Rapport copié.", "ok");
     }
   });
+
+  // =========================================================================
+  //  Post-it d'aide (v1.2.0) — apparaît après 3 s de survol immobile.
+  //  Désactivé sur écran tactile, où il n'y a pas de survol.
+  // =========================================================================
+
+  const AIDES = {
+    "btn-scanner": ["Analyser",
+      "Relit le stockage local de ce domaine et redresse la liste des tokens trouvés. L'analyse se fait déjà automatiquement à l'ouverture ; ce bouton sert à rafraîchir après une modification faite ailleurs."],
+    "btn-tout": ["Tout cocher",
+      "Sélectionne toutes les entrées trouvées. Les entrées cochées sont celles que la sauvegarde enregistrera et que le remplacement modifiera."],
+    "btn-rien": ["Tout décocher",
+      "Désélectionne tout, pour ne cocher ensuite que les entrées d'un seul token si tu n'en remplaces qu'un."],
+    "btn-sauver": ["Télécharger la sauvegarde",
+      "Enregistre dans un fichier la valeur actuelle complète de chaque clé cochée. C'est le seul moyen de revenir en arrière. Le fichier contient tes tokens en clair : supprime-le une fois la rotation terminée."],
+    "btn-restaurer": ["Restaurer une sauvegarde",
+      "Recharge un fichier de sauvegarde et remet les clés dans leur état d'alors. À utiliser si un remplacement s'est mal passé."],
+    "btn-github": ["Régénérer sur GitHub",
+      "Ouvre une fenêtre rappelant la marche à suivre, avec les liens vers tes listes de tokens sur GitHub. Attention : régénérer invalide l'ancien token immédiatement."],
+    "btn-voir": ["Afficher / masquer",
+      "Bascule l'affichage du champ ci-dessus entre points et texte lisible, pour vérifier ce que tu viens de coller."],
+    "btn-tester": ["Vérifier auprès de GitHub",
+      "Interroge l'API GitHub avec le token saisi et affiche le compte auquel il appartient. Permet de s'assurer qu'il est valide et bien collé avant de le diffuser partout."],
+    "btn-appliquer": ["Remplacer",
+      "Écrit le nouveau token dans toutes les entrées cochées. Une valeur directe est réécrite telle quelle ; un champ niché dans un objet JSON est modifié en place, sans toucher au reste de l'objet."],
+    "btn-inventaire": ["Lister toutes les clés",
+      "Affiche l'intégralité du stockage local, y compris les clés où aucun token n'a été reconnu. Utile pour repérer une app qui stockerait son token sous une forme inhabituelle."],
+    "btn-copier-rapport": ["Copier le rapport",
+      "Copie dans le presse-papier la liste des clés et le nombre de tokens distincts. Aucune valeur de token n'y figure, le rapport est donc partageable sans risque."],
+    "btn-fermer-gh": ["Fermer",
+      "Referme cette fenêtre. Ce que tu as déjà saisi dans le champ du nouveau token est conservé."],
+    "lien-fine": ["Tokens à portée fine",
+      "Ouvre dans un nouvel onglet la liste de tes tokens à portée fine, ceux dont la valeur commence par github_pat_. Clique ensuite sur le nom du token pour accéder à son bouton Regenerate."],
+    "lien-classic": ["Tokens classiques",
+      "Ouvre la liste des tokens de l'ancien format, dont la valeur commence par ghp_. Même parcours : ouvrir la fiche du token, puis Regenerate."]
+  };
+
+  (function installerPostits() {
+    // Pas de survol sur écran tactile : on n'installe rien.
+    if (!window.matchMedia || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+
+    const DELAI = 3000;   // survol immobile requis, en millisecondes
+    const postit = document.createElement("div");
+    postit.id = "postit";
+    const ptTitre = document.createElement("div");
+    ptTitre.className = "pt-titre";
+    const ptTexte = document.createElement("div");
+    ptTexte.className = "pt-texte";
+    postit.appendChild(ptTitre);
+    postit.appendChild(ptTexte);
+    document.body.appendChild(postit);
+
+    let minuteur = null;
+    let souris = { x: 0, y: 0 };
+
+    function cacher() {
+      clearTimeout(minuteur);
+      minuteur = null;
+      postit.classList.remove("show");
+    }
+
+    function afficher(titre, texte) {
+      ptTitre.textContent = titre;
+      ptTexte.textContent = texte;
+      postit.classList.add("show");
+
+      // Placement près du curseur, ramené dans l'écran si besoin
+      const m = 14;
+      const r = postit.getBoundingClientRect();
+      let x = souris.x + 16;
+      let y = souris.y + 18;
+      if (x + r.width > window.innerWidth - m) x = window.innerWidth - r.width - m;
+      if (y + r.height > window.innerHeight - m) y = souris.y - r.height - 12;
+      postit.style.left = Math.max(m, x) + "px";
+      postit.style.top = Math.max(m, y) + "px";
+    }
+
+    for (const id of Object.keys(AIDES)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const [titre, texte] = AIDES[id];
+
+      const relancer = e => {
+        souris = { x: e.clientX, y: e.clientY };
+        postit.classList.remove("show");   // tout mouvement remet le compte à zéro
+        clearTimeout(minuteur);
+        minuteur = setTimeout(() => afficher(titre, texte), DELAI);
+      };
+
+      el.addEventListener("mouseenter", relancer);
+      el.addEventListener("mousemove", relancer);
+      el.addEventListener("mouseleave", cacher);
+      el.addEventListener("mousedown", cacher);
+    }
+
+    window.addEventListener("scroll", cacher, true);
+    window.addEventListener("blur", cacher);
+  })();
 
   // Analyse automatique au chargement
   scanner();
