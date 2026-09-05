@@ -3,16 +3,546 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>tokens</title>
+<title>Changer mes tokens</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#f5f5f7; color:#1d1d1f; text-align:center; padding:60px 20px; }
-  h1 { color:#0071e3; }
-  p { color:#86868b; }
+  :root {
+    --bg: #0d1210;
+    --panel: #131a17;
+    --border: #223028;
+    --text: #d7e4dc;
+    --text-dim: #7c9187;
+    --accent: #4fd980;
+    --accent-dim: #2c7a4b;
+    --err: #ff6b6b;
+    --warn: #ffb648;
+    --mono: "IBM Plex Mono", "Courier New", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--bg);
+    background-image:
+      linear-gradient(rgba(79,217,128,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,217,128,0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--text);
+    font-family: var(--mono);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 14px 60px;
+  }
+  .topbar {
+    width: 100%; max-width: 880px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 22px; gap: 12px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent);
+  }
+  h1 { font-size: 1.05rem; letter-spacing: 0.07em; text-transform: uppercase; margin: 0; font-weight: 600; }
+  .origin { color: var(--text-dim); font-size: 0.75rem; }
+  .version {
+    color: var(--bg); background: var(--accent);
+    font-size: 0.95rem; font-weight: 700; padding: 6px 14px;
+    border-radius: 5px; white-space: nowrap;
+    box-shadow: 0 0 12px rgba(79,217,128,0.55); border: 1px solid var(--accent);
+  }
+  .card {
+    width: 100%; max-width: 880px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 18px; margin-bottom: 16px;
+  }
+  h2 {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--text-dim); margin: 0 0 12px; font-weight: 600;
+  }
+  p.note { font-size: 0.8rem; line-height: 1.55; color: var(--text-dim); margin: 0 0 12px; }
+  button {
+    font-family: var(--mono); font-size: 0.85rem;
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border); padding: 9px 15px;
+    border-radius: 4px; cursor: pointer; letter-spacing: 0.02em;
+  }
+  button:hover { border-color: var(--accent-dim); color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+  button.primary:hover { background: #6ee89b; color: var(--bg); }
+  button.danger { border-color: var(--err); color: var(--err); }
+  .row-btns { display: flex; gap: 9px; flex-wrap: wrap; }
+  input[type="text"], input[type="password"], textarea {
+    width: 100%; font-family: var(--mono); font-size: 0.85rem;
+    background: #0a0f0d; color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px; padding: 10px;
+  }
+  textarea { min-height: 110px; resize: vertical; white-space: pre; overflow: auto; font-size: 0.75rem; }
+  .status { font-size: 0.8rem; min-height: 18px; margin-top: 10px; line-height: 1.5; }
+  .status.ok { color: var(--accent); }
+  .status.error { color: var(--err); }
+  .status.warn { color: var(--warn); }
+
+  .groupe {
+    background: #0a0f0d; border: 1px solid var(--border);
+    border-left: 5px solid var(--warn);
+    border-radius: 6px; padding: 13px 15px; margin-bottom: 11px;
+  }
+  .groupe-tete { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+  .empreinte { font-weight: 700; color: var(--warn); font-size: 0.95rem; }
+  .compte { color: var(--text-dim); font-size: 0.78rem; }
+  .entree {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 5px 0 5px 4px; font-size: 0.82rem; line-height: 1.45;
+  }
+  .entree input[type="checkbox"] { margin-top: 3px; width: 17px; height: 17px; flex: 0 0 auto; accent-color: #4fd980; }
+  .entree .cle { word-break: break-all; }
+  .entree .chemin { color: var(--text-dim); }
+  .entree .lieu { color: var(--text-dim); font-size: 0.72rem; }
+  .vide { color: var(--text-dim); font-size: 0.85rem; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--text-dim); font-size: 0.8rem; }
+  .brute { font-size: 0.75rem; color: var(--text-dim); padding: 4px 0; word-break: break-all; }
+  .avert {
+    border: 2px solid var(--warn); border-radius: 5px;
+    padding: 11px 14px; margin-bottom: 14px;
+    font-size: 0.82rem; line-height: 1.55; color: #ffd9a0;
+  }
 </style>
 </head>
 <body>
-<h1>tokens</h1>
-<p>Nouvelle application créée avec Le Déployeur.</p>
-<p>Déploie ton code depuis l'étape 3 pour remplacer cette page.</p>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Changer mes tokens</h1>
+      <span class="origin" id="origine"></span>
+    </div>
+    <div class="version" id="badge-version">v1.0.0</div>
+  </div>
+
+  <!-- 1. Détection -->
+  <div class="card">
+    <h2>1 · Tokens trouvés sur cet appareil</h2>
+    <p class="note">
+      Analyse du stockage local de ce navigateur, pour ce domaine uniquement.
+      Les entrées sont regroupées par token : une même valeur utilisée par plusieurs apps apparaît une seule fois.
+    </p>
+    <div class="row-btns">
+      <button class="primary" id="btn-scanner">🔍 Analyser</button>
+      <button id="btn-tout">Tout cocher</button>
+      <button id="btn-rien">Tout décocher</button>
+    </div>
+    <div id="resultats" style="margin-top:14px"></div>
+    <div class="status" id="statut-scan"></div>
+  </div>
+
+  <!-- 2. Sauvegarde -->
+  <div class="card">
+    <h2>2 · Sauvegarde avant modification</h2>
+    <p class="note">
+      Enregistre la valeur actuelle de toutes les clés concernées. À faire avant l'étape 3 :
+      c'est le seul moyen de revenir en arrière si quelque chose se passe mal.
+    </p>
+    <div class="row-btns">
+      <button id="btn-sauver">💾 Télécharger la sauvegarde</button>
+      <button id="btn-restaurer">↩ Restaurer une sauvegarde</button>
+    </div>
+    <div class="status" id="statut-sauvegarde"></div>
+  </div>
+
+  <!-- 3. Remplacement -->
+  <div class="card">
+    <h2>3 · Nouveau token</h2>
+    <div class="avert" id="avert-regen">
+      Rappel : « Regenerate » sur GitHub invalide l'ancien token immédiatement.
+      Garde cet écran ouvert et fais le remplacement dans la foulée.
+    </div>
+    <input type="password" id="nouveau-token" placeholder="Coller ici le nouveau token" autocomplete="off" spellcheck="false">
+    <div class="row-btns" style="margin-top:11px">
+      <button id="btn-voir">👁 Afficher</button>
+      <button id="btn-tester">🧪 Vérifier auprès de GitHub</button>
+      <button class="primary" id="btn-appliquer">✔ Remplacer dans les entrées cochées</button>
+    </div>
+    <div class="status" id="statut-remplacement"></div>
+  </div>
+
+  <!-- 4. Diagnostic -->
+  <div class="card">
+    <h2>4 · Diagnostic</h2>
+    <p class="note">
+      Toutes les clés du stockage local, y compris celles où aucun token n'a été reconnu.
+      Utile si une app garde son token sous une forme inhabituelle.
+    </p>
+    <div class="row-btns">
+      <button id="btn-inventaire">📋 Lister toutes les clés</button>
+      <button id="btn-copier-rapport">Copier le rapport</button>
+    </div>
+    <div id="inventaire" style="margin-top:12px"></div>
+    <div class="status" id="statut-diag"></div>
+  </div>
+
+<script>
+  // ---- Version : à incrémenter à chaque évolution ----
+  const APP_VERSION = "1.0.0";
+  document.getElementById("badge-version").textContent = "v" + APP_VERSION;
+  document.getElementById("origine").textContent = location.origin;
+
+  // Formats de tokens GitHub : classiques (ghp_, gho_, ghu_, ghs_, ghr_),
+  // à portée fine (github_pat_), et anciens tokens hexadécimaux de 40 caractères.
+  const RE_TOKEN = /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|[0-9a-f]{40})$/;
+
+  let entrees = [];   // { stockage, cle, chemin[], valeur }
+  let groupes = [];   // { valeur, entrees[] }
+
+  const $ = id => document.getElementById(id);
+  const stockages = () => [["localStorage", localStorage], ["sessionStorage", sessionStorage]];
+
+  function masquer(v) {
+    if (!v || v.length < 12) return "••••";
+    return v.slice(0, 7) + "…" + v.slice(-4);
+  }
+
+  function setStatut(el, msg, type) {
+    el.textContent = msg || "";
+    el.className = "status" + (type ? " " + type : "");
+  }
+
+  // Parcourt un objet JSON et renvoie les chemins menant à une chaîne ressemblant à un token
+  function chercherDansObjet(obj, chemin, trouves) {
+    if (typeof obj === "string") {
+      if (RE_TOKEN.test(obj.trim())) trouves.push({ chemin: chemin.slice(), valeur: obj.trim() });
+      return;
+    }
+    if (Array.isArray(obj)) {
+      obj.forEach((v, i) => chercherDansObjet(v, chemin.concat(String(i)), trouves));
+      return;
+    }
+    if (obj && typeof obj === "object") {
+      for (const k of Object.keys(obj)) chercherDansObjet(obj[k], chemin.concat(k), trouves);
+    }
+  }
+
+  function scanner() {
+    entrees = [];
+    for (const [nom, store] of stockages()) {
+      let n = 0;
+      try { n = store.length; } catch (e) { continue; }
+      for (let i = 0; i < n; i++) {
+        const cle = store.key(i);
+        const brut = store.getItem(cle);
+        if (typeof brut !== "string" || !brut) continue;
+
+        // Cas 1 : la valeur est directement un token
+        if (RE_TOKEN.test(brut.trim())) {
+          entrees.push({ stockage: nom, cle, chemin: [], valeur: brut.trim() });
+          continue;
+        }
+        // Cas 2 : la valeur est un JSON contenant un token quelque part
+        try {
+          const parse = JSON.parse(brut);
+          const trouves = [];
+          chercherDansObjet(parse, [], trouves);
+          for (const t of trouves) {
+            entrees.push({ stockage: nom, cle, chemin: t.chemin, valeur: t.valeur });
+          }
+        } catch (e) { /* pas du JSON : on ignore */ }
+      }
+    }
+
+    // Regroupement par valeur de token
+    const parValeur = new Map();
+    for (const e of entrees) {
+      if (!parValeur.has(e.valeur)) parValeur.set(e.valeur, []);
+      parValeur.get(e.valeur).push(e);
+    }
+    groupes = [...parValeur.entries()]
+      .map(([valeur, liste]) => ({ valeur, entrees: liste }))
+      .sort((a, b) => b.entrees.length - a.entrees.length);
+
+    afficherResultats();
+  }
+
+  function afficherResultats() {
+    const zone = $("resultats");
+    zone.innerHTML = "";
+
+    if (groupes.length === 0) {
+      const d = document.createElement("div");
+      d.className = "vide";
+      d.textContent = "Aucun token reconnu dans le stockage local de ce domaine. "
+        + "Vérifie que tu ouvres bien cette page depuis le domaine de tes apps, pas depuis un fichier local.";
+      zone.appendChild(d);
+      setStatut($("statut-scan"), "", null);
+      return;
+    }
+
+    groupes.forEach((g, gi) => {
+      const bloc = document.createElement("div");
+      bloc.className = "groupe";
+
+      const tete = document.createElement("div");
+      tete.className = "groupe-tete";
+      const emp = document.createElement("span");
+      emp.className = "empreinte";
+      emp.textContent = masquer(g.valeur);
+      const cpt = document.createElement("span");
+      cpt.className = "compte";
+      cpt.textContent = g.entrees.length > 1
+        ? `utilisé par ${g.entrees.length} entrées`
+        : "utilisé par 1 entrée";
+      tete.appendChild(emp);
+      tete.appendChild(cpt);
+      bloc.appendChild(tete);
+
+      g.entrees.forEach((e, ei) => {
+        const ligne = document.createElement("label");
+        ligne.className = "entree";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = true;
+        cb.dataset.groupe = gi;
+        cb.dataset.entree = ei;
+
+        const txt = document.createElement("span");
+        const cle = document.createElement("span");
+        cle.className = "cle";
+        cle.textContent = e.cle;
+        txt.appendChild(cle);
+        if (e.chemin.length) {
+          const ch = document.createElement("span");
+          ch.className = "chemin";
+          ch.textContent = " → " + e.chemin.join(" → ");
+          txt.appendChild(ch);
+        }
+        const lieu = document.createElement("div");
+        lieu.className = "lieu";
+        lieu.textContent = e.stockage + (e.chemin.length ? " · champ dans un objet JSON" : " · valeur directe");
+        txt.appendChild(lieu);
+
+        ligne.appendChild(cb);
+        ligne.appendChild(txt);
+        bloc.appendChild(ligne);
+      });
+
+      zone.appendChild(bloc);
+    });
+
+    setStatut($("statut-scan"),
+      `${entrees.length} entrée(s) trouvée(s), ${groupes.length} token(s) distinct(s).`, "ok");
+  }
+
+  function sélection() {
+    const cases = document.querySelectorAll("#resultats input[type=checkbox]");
+    const liste = [];
+    cases.forEach(cb => {
+      if (cb.checked) liste.push(groupes[+cb.dataset.groupe].entrees[+cb.dataset.entree]);
+    });
+    return liste;
+  }
+
+  $("btn-scanner").addEventListener("click", scanner);
+  $("btn-tout").addEventListener("click", () => {
+    document.querySelectorAll("#resultats input[type=checkbox]").forEach(cb => cb.checked = true);
+  });
+  $("btn-rien").addEventListener("click", () => {
+    document.querySelectorAll("#resultats input[type=checkbox]").forEach(cb => cb.checked = false);
+  });
+
+  // ---- Sauvegarde / restauration ----
+  $("btn-sauver").addEventListener("click", () => {
+    const choisies = sélection();
+    if (choisies.length === 0) {
+      setStatut($("statut-sauvegarde"), "Rien à sauvegarder : aucune entrée cochée.", "error");
+      return;
+    }
+    // Une clé peut porter plusieurs entrées : on sauvegarde la valeur brute complète, une fois par clé
+    const vues = new Set();
+    const items = [];
+    for (const e of choisies) {
+      const id = e.stockage + "|" + e.cle;
+      if (vues.has(id)) continue;
+      vues.add(id);
+      const store = e.stockage === "localStorage" ? localStorage : sessionStorage;
+      items.push({ stockage: e.stockage, cle: e.cle, valeur: store.getItem(e.cle) });
+    }
+
+    const sauvegarde = {
+      outil: "Changer mes tokens",
+      version: APP_VERSION,
+      origine: location.origin,
+      date: new Date().toISOString(),
+      items
+    };
+    const horodatage = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const blob = new Blob([JSON.stringify(sauvegarde, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sauvegarde-tokens-${horodatage}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    setStatut($("statut-sauvegarde"),
+      `${items.length} clé(s) sauvegardée(s). Attention : ce fichier contient tes tokens en clair.`, "warn");
+  });
+
+  $("btn-restaurer").addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.addEventListener("change", () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      const lecteur = new FileReader();
+      lecteur.onload = () => {
+        try {
+          const sauvegarde = JSON.parse(lecteur.result);
+          if (!Array.isArray(sauvegarde.items)) throw new Error("format inattendu");
+          if (!confirm(`Restaurer ${sauvegarde.items.length} clé(s) de la sauvegarde du `
+            + `${new Date(sauvegarde.date).toLocaleString("fr-FR")} ? `
+            + "Les valeurs actuelles seront écrasées.")) return;
+          let n = 0;
+          for (const it of sauvegarde.items) {
+            const store = it.stockage === "sessionStorage" ? sessionStorage : localStorage;
+            if (typeof it.valeur === "string") { store.setItem(it.cle, it.valeur); n++; }
+          }
+          setStatut($("statut-sauvegarde"), `${n} clé(s) restaurée(s).`, "ok");
+          scanner();
+        } catch (err) {
+          setStatut($("statut-sauvegarde"), "Fichier illisible : " + err.message, "error");
+        }
+      };
+      lecteur.readAsText(f);
+    });
+    input.click();
+  });
+
+  // ---- Vérification et remplacement ----
+  $("btn-voir").addEventListener("click", () => {
+    const champ = $("nouveau-token");
+    const cache = champ.type === "password";
+    champ.type = cache ? "text" : "password";
+    $("btn-voir").textContent = cache ? "🙈 Masquer" : "👁 Afficher";
+  });
+
+  $("btn-tester").addEventListener("click", async () => {
+    const token = $("nouveau-token").value.trim();
+    if (!token) { setStatut($("statut-remplacement"), "Colle d'abord le nouveau token.", "error"); return; }
+    setStatut($("statut-remplacement"), "Vérification auprès de GitHub…");
+    try {
+      const res = await fetch("https://api.github.com/user", {
+        headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" }
+      });
+      if (res.status === 401) { setStatut($("statut-remplacement"), "Token refusé (401) : invalide ou déjà révoqué.", "error"); return; }
+      if (!res.ok) { setStatut($("statut-remplacement"), "Réponse inattendue de GitHub : " + res.status, "error"); return; }
+      const data = await res.json();
+      const portees = res.headers.get("X-OAuth-Scopes");
+      setStatut($("statut-remplacement"),
+        `Token valide — compte ${data.login}. `
+        + (portees ? `Portées : ${portees}.` : "Token à portée fine (permissions visibles sur sa fiche GitHub)."),
+        "ok");
+    } catch (err) {
+      setStatut($("statut-remplacement"), "Échec réseau : " + err.message, "error");
+    }
+  });
+
+  $("btn-appliquer").addEventListener("click", () => {
+    const token = $("nouveau-token").value.trim();
+    const choisies = sélection();
+
+    if (!token) { setStatut($("statut-remplacement"), "Colle d'abord le nouveau token.", "error"); return; }
+    if (!RE_TOKEN.test(token)) {
+      if (!confirm("Cette valeur ne ressemble pas à un token GitHub connu. Continuer quand même ?")) return;
+    }
+    if (choisies.length === 0) { setStatut($("statut-remplacement"), "Aucune entrée cochée.", "error"); return; }
+    if (!confirm(`Remplacer le token dans ${choisies.length} entrée(s) ? `
+      + "Assure-toi d'avoir fait la sauvegarde de l'étape 2.")) return;
+
+    let ok = 0;
+    const erreurs = [];
+    for (const e of choisies) {
+      const store = e.stockage === "localStorage" ? localStorage : sessionStorage;
+      try {
+        if (e.chemin.length === 0) {
+          store.setItem(e.cle, token);
+        } else {
+          const obj = JSON.parse(store.getItem(e.cle));
+          let noeud = obj;
+          for (let i = 0; i < e.chemin.length - 1; i++) noeud = noeud[e.chemin[i]];
+          noeud[e.chemin[e.chemin.length - 1]] = token;
+          store.setItem(e.cle, JSON.stringify(obj));
+        }
+        ok++;
+      } catch (err) {
+        erreurs.push(`${e.cle} : ${err.message}`);
+      }
+    }
+
+    setStatut($("statut-remplacement"),
+      `${ok} entrée(s) mise(s) à jour.`
+      + (erreurs.length ? ` ${erreurs.length} échec(s) : ${erreurs.join(" ; ")}` : "")
+      + " Rouvre chaque app pour vérifier que la synchronisation repart.",
+      erreurs.length ? "warn" : "ok");
+
+    $("nouveau-token").value = "";
+    scanner();
+  });
+
+  // ---- Diagnostic ----
+  function construireInventaire() {
+    const lignes = [];
+    for (const [nom, store] of stockages()) {
+      let n = 0;
+      try { n = store.length; } catch (e) { continue; }
+      for (let i = 0; i < n; i++) {
+        const cle = store.key(i);
+        const v = store.getItem(cle) || "";
+        const detecte = entrees.some(e => e.stockage === nom && e.cle === cle);
+        lignes.push({ nom, cle, taille: v.length, detecte, apercu: v.slice(0, 60) });
+      }
+    }
+    return lignes.sort((a, b) => b.taille - a.taille);
+  }
+
+  $("btn-inventaire").addEventListener("click", () => {
+    const zone = $("inventaire");
+    zone.innerHTML = "";
+    const lignes = construireInventaire();
+    if (lignes.length === 0) {
+      zone.innerHTML = '<div class="vide">Stockage local vide pour ce domaine.</div>';
+      return;
+    }
+    for (const l of lignes) {
+      const d = document.createElement("div");
+      d.className = "brute";
+      d.textContent = `${l.detecte ? "🔑" : "  "} ${l.cle} — ${l.taille} car. (${l.nom}) : ${l.apercu}${l.taille > 60 ? "…" : ""}`;
+      if (l.detecte) d.style.color = "var(--warn)";
+      zone.appendChild(d);
+    }
+    setStatut($("statut-diag"), `${lignes.length} clé(s) au total.`, "ok");
+  });
+
+  $("btn-copier-rapport").addEventListener("click", async () => {
+    const lignes = construireInventaire()
+      .map(l => `${l.detecte ? "[TOKEN] " : "        "}${l.cle} (${l.nom}, ${l.taille} car.)`);
+    const rapport = `Rapport tokens — ${location.origin} — ${new Date().toLocaleString("fr-FR")}\n`
+      + `${entrees.length} entrée(s) avec token, ${groupes.length} token(s) distinct(s)\n\n`
+      + lignes.join("\n");
+    try {
+      await navigator.clipboard.writeText(rapport);
+      setStatut($("statut-diag"), "Rapport copié (aucune valeur de token dedans).", "ok");
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = rapport;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      setStatut($("statut-diag"), "Rapport copié.", "ok");
+    }
+  });
+
+  // Analyse automatique au chargement
+  scanner();
+</script>
 </body>
 </html>
