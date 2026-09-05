@@ -106,6 +106,33 @@
     padding: 11px 14px; margin-bottom: 14px;
     font-size: 0.82rem; line-height: 1.55; color: #ffd9a0;
   }
+
+  /* ---- Fenêtre « Régénérer sur GitHub » ---- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    z-index: 20; padding: 16px;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 22px;
+    width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+  }
+  .modal h3 {
+    font-size: 0.9rem; margin: 0 0 12px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text);
+  }
+  .modal ol { margin: 0 0 16px; padding-left: 20px; font-size: 0.82rem; line-height: 1.65; color: var(--text-dim); }
+  .modal ol b { color: var(--text); font-weight: 600; }
+  .lien-gh {
+    display: block; text-decoration: none; text-align: center;
+    font-family: var(--mono); font-size: 0.85rem;
+    border: 1px solid var(--accent-dim); color: var(--accent);
+    padding: 11px 14px; border-radius: 4px; margin-bottom: 9px;
+  }
+  .lien-gh:hover { background: rgba(79,217,128,0.1); }
+  .lien-gh small { display: block; color: var(--text-dim); font-size: 0.72rem; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -158,6 +185,7 @@
     </div>
     <input type="password" id="nouveau-token" placeholder="Coller ici le nouveau token" autocomplete="off" spellcheck="false">
     <div class="row-btns" style="margin-top:11px">
+      <button id="btn-github">🔑 Régénérer sur GitHub</button>
       <button id="btn-voir">👁 Afficher</button>
       <button id="btn-tester">🧪 Vérifier auprès de GitHub</button>
       <button class="primary" id="btn-appliquer">✔ Remplacer dans les entrées cochées</button>
@@ -180,9 +208,41 @@
     <div class="status" id="statut-diag"></div>
   </div>
 
+  <!-- Fenêtre d'aide à la régénération -->
+  <div class="overlay" id="overlay-gh">
+    <div class="modal">
+      <h3>Régénérer un token sur GitHub</h3>
+      <ol>
+        <li>Ouvre la liste correspondant à ton type de token (voir ci-dessous).</li>
+        <li>Clique sur le <b>nom</b> du token à remplacer pour ouvrir sa fiche.</li>
+        <li>Clique sur <b>Regenerate token</b>, choisis une durée de validité, confirme.</li>
+        <li>Copie la nouvelle valeur : <b>GitHub ne la réaffichera jamais</b>.</li>
+        <li>Reviens ici, colle-la, vérifie, puis remplace.</li>
+      </ol>
+
+      <a class="lien-gh" id="lien-fine" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">
+        Tokens à portée fine
+        <small>préfixe github_pat_ — le cas le plus courant chez toi</small>
+      </a>
+      <a class="lien-gh" id="lien-classic" href="https://github.com/settings/tokens" target="_blank" rel="noopener">
+        Tokens classiques
+        <small>préfixe ghp_</small>
+      </a>
+
+      <div class="avert" style="margin: 14px 0 16px">
+        La régénération invalide l'ancien token <b>immédiatement</b>.
+        Fais la sauvegarde de l'étape 2 avant, et enchaîne le remplacement sans attendre.
+      </div>
+
+      <div class="row-btns" style="justify-content:flex-end">
+        <button id="btn-fermer-gh">Fermer</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   // ---- Version : à incrémenter à chaque évolution ----
-  const APP_VERSION = "1.0.0";
+  const APP_VERSION = "1.1.0";
   document.getElementById("badge-version").textContent = "v" + APP_VERSION;
   document.getElementById("origine").textContent = location.origin;
 
@@ -417,6 +477,11 @@
   });
 
   // ---- Vérification et remplacement ----
+  const overlayGh = $("overlay-gh");
+  $("btn-github").addEventListener("click", () => overlayGh.classList.add("show"));
+  $("btn-fermer-gh").addEventListener("click", () => overlayGh.classList.remove("show"));
+  overlayGh.addEventListener("click", e => { if (e.target === overlayGh) overlayGh.classList.remove("show"); });
+
   $("btn-voir").addEventListener("click", () => {
     const champ = $("nouveau-token");
     const cache = champ.type === "password";
