@@ -70,6 +70,18 @@
   button.primary:hover { background: #6ee89b; color: var(--bg); }
   button.danger { border-color: var(--err); color: var(--err); }
   .row-btns { display: flex; gap: 9px; flex-wrap: wrap; }
+  .champ-token { display: flex; gap: 8px; align-items: stretch; }
+  .champ-token input { flex: 1 1 auto; min-width: 0; }
+  button.icone {
+    flex: 0 0 auto;
+    width: 46px;
+    padding: 0;
+    font-size: 1.15rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   input[type="text"], input[type="password"], textarea {
     width: 100%; font-family: var(--mono); font-size: 0.85rem;
     background: #0a0f0d; color: var(--text);
@@ -211,10 +223,12 @@
       Rappel : « Regenerate » sur GitHub invalide l'ancien token immédiatement.
       Garde cet écran ouvert et fais le remplacement dans la foulée.
     </div>
-    <input type="password" id="nouveau-token" placeholder="Coller ici le nouveau token" autocomplete="off" spellcheck="false">
+    <div class="champ-token">
+      <input type="password" id="nouveau-token" placeholder="Coller ici le nouveau token" autocomplete="off" spellcheck="false">
+      <button id="btn-voir" class="icone" aria-label="Afficher le token">👁</button>
+    </div>
     <div class="row-btns" style="margin-top:11px">
       <button id="btn-github">🔑 Régénérer sur GitHub</button>
-      <button id="btn-voir">👁 Afficher</button>
       <button id="btn-tester">🧪 Vérifier auprès de GitHub</button>
       <button class="primary" id="btn-appliquer">✔ Remplacer dans les entrées cochées</button>
     </div>
@@ -270,7 +284,7 @@
 
 <script>
   // ---- Version : à incrémenter à chaque évolution ----
-  const APP_VERSION = "1.2.0";
+  const APP_VERSION = "1.3.0";
   document.getElementById("badge-version").textContent = "v" + APP_VERSION;
   document.getElementById("origine").textContent = location.origin;
 
@@ -514,7 +528,9 @@
     const champ = $("nouveau-token");
     const cache = champ.type === "password";
     champ.type = cache ? "text" : "password";
-    $("btn-voir").textContent = cache ? "🙈 Masquer" : "👁 Afficher";
+    const bouton = $("btn-voir");
+    bouton.textContent = cache ? "🙈" : "👁";
+    bouton.setAttribute("aria-label", cache ? "Masquer le token" : "Afficher le token");
   });
 
   $("btn-tester").addEventListener("click", async () => {
