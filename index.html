@@ -109,6 +109,21 @@
   .entree .cle { word-break: break-all; }
   .entree .chemin { color: var(--text-dim); }
   .entree .lieu { color: var(--text-dim); font-size: 0.72rem; }
+
+  /* v1.4.0 — signalement des fausses détections et de l'état des tokens */
+  .groupe.suspect { border-left-color: var(--err); }
+  .groupe.valide { border-left-color: var(--accent); }
+  .groupe.refuse { border-left-color: var(--err); }
+  .badge {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+    border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap;
+  }
+  .badge.ok { color: var(--accent); border-color: var(--accent-dim); }
+  .badge.ko { color: var(--err); border-color: var(--err); }
+  .badge.att { color: var(--warn); border-color: var(--warn); }
+  .hash { color: var(--text-dim); font-size: 0.72rem; letter-spacing: 0.04em; }
+  .entree.suspecte { background: rgba(255,107,107,0.06); border-radius: 4px; }
+  .entree .motif { color: var(--err); font-size: 0.72rem; line-height: 1.4; margin-top: 2px; }
   .vide { color: var(--text-dim); font-size: 0.85rem; }
   details { margin-top: 12px; }
   summary { cursor: pointer; color: var(--text-dim); font-size: 0.8rem; }
@@ -183,7 +198,7 @@
       <h1>Changer mes tokens</h1>
       <span class="origin" id="origine"></span>
     </div>
-    <div class="version" id="badge-version">v1.0.0</div>
+    <div class="version" id="badge-version">v1.4.0</div>
   </div>
 
   <!-- 1. Détection -->
@@ -195,6 +210,7 @@
     </p>
     <div class="row-btns">
       <button class="primary" id="btn-scanner">🔍 Analyser</button>
+      <button id="btn-verifier">🧪 Tester les tokens trouvés</button>
       <button id="btn-tout">Tout cocher</button>
       <button id="btn-rien">Tout décocher</button>
     </div>
@@ -284,13 +300,60 @@
 
 <script>
   // ---- Version : à incrémenter à chaque évolution ----
-  const APP_VERSION = "1.3.0";
+  const APP_VERSION = "1.4.0";
   document.getElementById("badge-version").textContent = "v" + APP_VERSION;
   document.getElementById("origine").textContent = location.origin;
 
   // Formats de tokens GitHub : classiques (ghp_, gho_, ghu_, ghs_, ghr_),
   // à portée fine (github_pat_), et anciens tokens hexadécimaux de 40 caractères.
   const RE_TOKEN = /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|[0-9a-f]{40})$/;
+
+  // v1.4.0 — Un préfixe GitHub ne laisse aucun doute : c'est un token.
+  const RE_TOKEN_PREFIXE = /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/;
+
+  // En revanche, une chaîne hexadécimale de 40 caractères a la même forme
+  // qu'un ancien token GitHub, mais aussi qu'un SHA de commit, un SHA-1 de
+  // fichier, un ETag ou un identifiant interne. Le nom de la clé qui la
+  // porte est le seul indice fiable : on l'utilise pour trancher, et en cas
+  // de doute l'entrée est signalée et laissée DÉCOCHÉE.
+  const RE_CLE_JETON = /(token|jeton|pat\b|auth|secret|credential|apikey|api_key|access)/i;
+  const RE_CLE_NON_JETON = /(^|[^a-z])(sha|sha1|sha256|hash|digest|checksum|etag|oid|commit|revision|blob|tree|uuid|guid|signature|fingerprint|empreinte|md5|photo|image|file|fichier)s?([^a-z]|$)/i;
+
+  // Renvoie le segment de chemin porteur de sens (on remonte au-dessus des
+  // indices de tableau : « photos → 0 → sha » doit être jugé sur « sha »).
+  function segmentParlant(cleStockage, chemin) {
+    for (let i = chemin.length - 1; i >= 0; i--) {
+      if (!/^\d+$/.test(chemin[i])) return chemin[i];
+    }
+    return cleStockage;
+  }
+
+  // Décide si une valeur détectée est bien un token, ou une fausse
+  // détection à ne surtout pas écraser.
+  function classer(cleStockage, chemin, valeur) {
+    if (RE_TOKEN_PREFIXE.test(valeur)) return { suspect: false, motif: "" };
+    const seg = segmentParlant(cleStockage, chemin);
+    // Le nom du champ prime : une clé « ..._token » peut très bien contenir
+    // un objet JSON dont un champ « sha » n'a rien d'un token.
+    if (RE_CLE_JETON.test(seg)) return { suspect: false, motif: "" };
+    if (RE_CLE_NON_JETON.test(seg)) {
+      return { suspect: true, motif: `Valeur hexadécimale de 40 caractères stockée sous « ${seg} » : c'est un SHA ou un identifiant, pas un token. La remplacer corromprait cette donnée.` };
+    }
+    return { suspect: true, motif: `Valeur hexadécimale de 40 caractères sous « ${seg} », dont le nom n'évoque pas un token. À vérifier avant de la remplacer.` };
+  }
+
+  // Empreinte SHA-256 (8 caractères) : deux valeurs identiques donnent la
+  // même empreinte, deux valeurs qui ne diffèrent qu'en leur milieu donnent
+  // des empreintes différentes. Comparable avec celle affichée par les
+  // autres apps.
+  async function empreinteDe(valeur) {
+    try {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(valeur));
+      return Array.from(new Uint8Array(buf)).slice(0, 4).map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+      return "n/a";
+    }
+  }
 
   let entrees = [];   // { stockage, cle, chemin[], valeur }
   let groupes = [];   // { valeur, entrees[] }
@@ -323,7 +386,7 @@
     }
   }
 
-  function scanner() {
+  async function scanner() {
     entrees = [];
     for (const [nom, store] of stockages()) {
       let n = 0;
@@ -335,7 +398,8 @@
 
         // Cas 1 : la valeur est directement un token
         if (RE_TOKEN.test(brut.trim())) {
-          entrees.push({ stockage: nom, cle, chemin: [], valeur: brut.trim() });
+          const c = classer(cle, [], brut.trim());
+          entrees.push({ stockage: nom, cle, chemin: [], valeur: brut.trim(), suspect: c.suspect, motif: c.motif });
           continue;
         }
         // Cas 2 : la valeur est un JSON contenant un token quelque part
@@ -344,7 +408,8 @@
           const trouves = [];
           chercherDansObjet(parse, [], trouves);
           for (const t of trouves) {
-            entrees.push({ stockage: nom, cle, chemin: t.chemin, valeur: t.valeur });
+            const c = classer(cle, t.chemin, t.valeur);
+            entrees.push({ stockage: nom, cle, chemin: t.chemin, valeur: t.valeur, suspect: c.suspect, motif: c.motif });
           }
         } catch (e) { /* pas du JSON : on ignore */ }
       }
@@ -357,8 +422,24 @@
       parValeur.get(e.valeur).push(e);
     }
     groupes = [...parValeur.entries()]
-      .map(([valeur, liste]) => ({ valeur, entrees: liste }))
-      .sort((a, b) => b.entrees.length - a.entrees.length);
+      .map(([valeur, liste]) => ({
+        valeur,
+        entrees: liste,
+        // Un groupe n'est suspect que si AUCUNE de ses entrées n'est
+        // reconnue comme un vrai token : si la même valeur sert de token
+        // ailleurs, le doute est levé.
+        suspect: liste.every(e => e.suspect),
+        empreinte: "…",
+        verif: null
+      }))
+      .sort((a, b) => (a.suspect === b.suspect ? b.entrees.length - a.entrees.length : (a.suspect ? 1 : -1)));
+
+    // Une valeur reconnue comme vrai token quelque part ne doit plus être
+    // signalée comme suspecte dans ses autres emplacements.
+    for (const g of groupes) {
+      if (!g.suspect) g.entrees.forEach(e => { e.suspect = false; e.motif = ""; });
+      g.empreinte = await empreinteDe(g.valeur);
+    }
 
     afficherResultats();
   }
@@ -379,7 +460,10 @@
 
     groupes.forEach((g, gi) => {
       const bloc = document.createElement("div");
-      bloc.className = "groupe";
+      bloc.className = "groupe"
+        + (g.suspect ? " suspect" : "")
+        + (g.verif && g.verif.etat === "valide" ? " valide" : "")
+        + (g.verif && g.verif.etat === "refuse" ? " refuse" : "");
 
       const tete = document.createElement("div");
       tete.className = "groupe-tete";
@@ -391,17 +475,37 @@
       cpt.textContent = g.entrees.length > 1
         ? `utilisé par ${g.entrees.length} entrées`
         : "utilisé par 1 entrée";
+      const hsh = document.createElement("span");
+      hsh.className = "hash";
+      hsh.textContent = "empreinte " + g.empreinte;
       tete.appendChild(emp);
       tete.appendChild(cpt);
+      tete.appendChild(hsh);
+
+      if (g.suspect) {
+        const b = document.createElement("span");
+        b.className = "badge ko";
+        b.textContent = "⚠ probablement pas un token";
+        tete.appendChild(b);
+      }
+      if (g.verif) {
+        const b = document.createElement("span");
+        if (g.verif.etat === "valide") { b.className = "badge ok"; b.textContent = `✓ valide — compte ${g.verif.login}`; }
+        else if (g.verif.etat === "refuse") { b.className = "badge ko"; b.textContent = "✗ refusé par GitHub (expiré ou révoqué)"; }
+        else { b.className = "badge att"; b.textContent = "? non vérifiable : " + g.verif.message; }
+        tete.appendChild(b);
+      }
       bloc.appendChild(tete);
 
       g.entrees.forEach((e, ei) => {
         const ligne = document.createElement("label");
-        ligne.className = "entree";
+        ligne.className = "entree" + (e.suspect ? " suspecte" : "");
 
         const cb = document.createElement("input");
         cb.type = "checkbox";
-        cb.checked = true;
+        // Une entrée douteuse n'est jamais cochée d'office : la cocher
+        // reste possible, mais c'est alors un geste délibéré.
+        cb.checked = !e.suspect;
         cb.dataset.groupe = gi;
         cb.dataset.entree = ei;
 
@@ -420,6 +524,12 @@
         lieu.className = "lieu";
         lieu.textContent = e.stockage + (e.chemin.length ? " · champ dans un objet JSON" : " · valeur directe");
         txt.appendChild(lieu);
+        if (e.suspect && e.motif) {
+          const m = document.createElement("div");
+          m.className = "motif";
+          m.textContent = "⚠ " + e.motif;
+          txt.appendChild(m);
+        }
 
         ligne.appendChild(cb);
         ligne.appendChild(txt);
@@ -429,8 +539,47 @@
       zone.appendChild(bloc);
     });
 
+    const nbSuspects = groupes.filter(g => g.suspect).length;
+    const nbVrais = groupes.length - nbSuspects;
     setStatut($("statut-scan"),
-      `${entrees.length} entrée(s) trouvée(s), ${groupes.length} token(s) distinct(s).`, "ok");
+      `${entrees.length} entrée(s) trouvée(s), ${groupes.length} valeur(s) distincte(s) : `
+      + `${nbVrais} token(s) et ${nbSuspects} détection(s) douteuse(s), laissée(s) décochée(s).`
+      + (nbVrais > 1 ? " ⚠ Plusieurs tokens différents cohabitent : vos apps ne sont pas toutes à jour." : ""),
+      nbSuspects || nbVrais > 1 ? "warn" : "ok");
+  }
+
+  // ---- v1.4.0 : vérification de chaque valeur trouvée auprès de GitHub ----
+  // Répond à la question « lesquels de ces tokens fonctionnent encore ? »,
+  // et confirme au passage qu'une détection douteuse n'est pas un token.
+  async function verifierGroupes() {
+    if (!groupes.length) { setStatut($("statut-scan"), "Rien à vérifier : lance d'abord l'analyse.", "warn"); return; }
+    setStatut($("statut-scan"), `Vérification de ${groupes.length} valeur(s) auprès de GitHub…`);
+    for (const g of groupes) {
+      try {
+        const res = await fetch("https://api.github.com/user", {
+          headers: { "Authorization": "Bearer " + g.valeur, "Accept": "application/vnd.github+json" }
+        });
+        if (res.ok) {
+          const d = await res.json();
+          g.verif = { etat: "valide", login: d.login };
+        } else if (res.status === 401) {
+          g.verif = { etat: "refuse" };
+        } else {
+          g.verif = { etat: "autre", message: "HTTP " + res.status };
+        }
+      } catch (err) {
+        g.verif = { etat: "autre", message: err.message };
+      }
+    }
+    afficherResultats();
+    const valides = groupes.filter(g => g.verif && g.verif.etat === "valide");
+    const morts = groupes.filter(g => g.verif && g.verif.etat === "refuse" && !g.suspect);
+    let msg = `${valides.length} token(s) encore valide(s), ${morts.length} refusé(s) par GitHub.`;
+    if (morts.length) {
+      const apps = morts.flatMap(g => g.entrees.map(e => e.cle));
+      msg += ` Apps à remettre à jour : ${apps.join(", ")}.`;
+    }
+    setStatut($("statut-scan"), msg, morts.length ? "warn" : "ok");
   }
 
   function sélection() {
@@ -443,8 +592,19 @@
   }
 
   $("btn-scanner").addEventListener("click", scanner);
+  $("btn-verifier").addEventListener("click", verifierGroupes);
   $("btn-tout").addEventListener("click", () => {
-    document.querySelectorAll("#resultats input[type=checkbox]").forEach(cb => cb.checked = true);
+    // « Tout cocher » ne coche que les vraies entrées de token : les
+    // détections douteuses restent décochées, pour ne pas être écrasées
+    // par inadvertance lors d'un remplacement massif.
+    let ignorees = 0;
+    document.querySelectorAll("#resultats input[type=checkbox]").forEach(cb => {
+      const e = groupes[+cb.dataset.groupe].entrees[+cb.dataset.entree];
+      if (e.suspect) { cb.checked = false; ignorees++; }
+      else cb.checked = true;
+    });
+    if (ignorees) setStatut($("statut-scan"),
+      `${ignorees} détection(s) douteuse(s) volontairement laissée(s) décochée(s). Coche-les une par une si tu es sûr qu'il s'agit bien de tokens.`, "warn");
   });
   $("btn-rien").addEventListener("click", () => {
     document.querySelectorAll("#resultats input[type=checkbox]").forEach(cb => cb.checked = false);
@@ -563,6 +723,17 @@
       if (!confirm("Cette valeur ne ressemble pas à un token GitHub connu. Continuer quand même ?")) return;
     }
     if (choisies.length === 0) { setStatut($("statut-remplacement"), "Aucune entrée cochée.", "error"); return; }
+
+    // Dernier garde-fou : si une entrée signalée comme douteuse a été
+    // cochée à la main, on la nomme explicitement avant d'écraser quoi que
+    // ce soit — écraser un SHA de photo par un token corrompt la donnée.
+    const douteuses = choisies.filter(e => e.suspect);
+    if (douteuses.length) {
+      const liste = douteuses.map(e => "• " + e.cle + (e.chemin.length ? " → " + e.chemin.join(" → ") : "")).join("\n");
+      if (!confirm(`ATTENTION : ${douteuses.length} entrée(s) cochée(s) ne semblent PAS être des tokens :\n\n${liste}\n\n`
+        + "Les remplacer écrasera définitivement ces valeurs (SHA, identifiants…). Continuer quand même ?")) return;
+    }
+
     if (!confirm(`Remplacer le token dans ${choisies.length} entrée(s) ? `
       + "Assure-toi d'avoir fait la sauvegarde de l'étape 2.")) return;
 
@@ -586,14 +757,22 @@
       }
     }
 
-    setStatut($("statut-remplacement"),
-      `${ok} entrée(s) mise(s) à jour.`
-      + (erreurs.length ? ` ${erreurs.length} échec(s) : ${erreurs.join(" ; ")}` : "")
-      + " Rouvre chaque app pour vérifier que la synchronisation repart.",
-      erreurs.length ? "warn" : "ok");
-
     $("nouveau-token").value = "";
-    scanner();
+
+    // Contrôle immédiat : après un remplacement réussi, il ne doit plus
+    // rester qu'un seul token distinct (hors détections douteuses).
+    scanner().then(() => {
+      const restants = groupes.filter(g => !g.suspect).length;
+      const reste = restants > 1
+        ? ` ⚠ Il reste ${restants} tokens différents dans le stockage : certaines entrées n'ont pas été cochées.`
+        : " ✓ Toutes les apps de cet appareil partagent désormais le même token.";
+      setStatut($("statut-remplacement"),
+        `${ok} entrée(s) mise(s) à jour.`
+        + (erreurs.length ? ` ${erreurs.length} échec(s) : ${erreurs.join(" ; ")}` : "")
+        + reste
+        + " Utilise « Tester les tokens trouvés » pour confirmer auprès de GitHub.",
+        (erreurs.length || restants > 1) ? "warn" : "ok");
+    });
   });
 
   // ---- Diagnostic ----
@@ -658,8 +837,10 @@
   const AIDES = {
     "btn-scanner": ["Analyser",
       "Relit le stockage local de ce domaine et redresse la liste des tokens trouvés. L'analyse se fait déjà automatiquement à l'ouverture ; ce bouton sert à rafraîchir après une modification faite ailleurs."],
+    "btn-verifier": ["Tester les tokens trouvés",
+      "Interroge GitHub avec chaque valeur trouvée et indique laquelle est encore valide et laquelle est refusée. C'est ainsi qu'on repère les apps restées sur un ancien token, et qu'on confirme qu'une détection douteuse n'est pas un token."],
     "btn-tout": ["Tout cocher",
-      "Sélectionne toutes les entrées trouvées. Les entrées cochées sont celles que la sauvegarde enregistrera et que le remplacement modifiera."],
+      "Sélectionne toutes les entrées reconnues comme tokens. Les détections signalées comme douteuses restent volontairement décochées : à toi de les cocher une par une si tu es sûr."],
     "btn-rien": ["Tout décocher",
       "Désélectionne tout, pour ne cocher ensuite que les entrées d'un seul token si tu n'en remplaces qu'un."],
     "btn-sauver": ["Télécharger la sauvegarde",
