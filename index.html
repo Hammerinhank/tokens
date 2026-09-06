@@ -124,6 +124,27 @@
   .hash { color: var(--text-dim); font-size: 0.72rem; letter-spacing: 0.04em; }
   .entree.suspecte { background: rgba(255,107,107,0.06); border-radius: 4px; }
   .entree .motif { color: var(--err); font-size: 0.72rem; line-height: 1.4; margin-top: 2px; }
+
+  /* v1.5.0 — suivi des quatre navigateurs */
+  .sync-config { display: flex; flex-wrap: wrap; gap: 12px; }
+  .sync-config label { display: flex; flex-direction: column; gap: 4px; font-size: 0.76rem; color: var(--text-dim); flex: 1 1 180px; }
+  .sync-config input, .sync-config select {
+    background: #0a0f0d; color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 8px 10px; font-family: var(--mono); font-size: 0.82rem;
+  }
+  .ligne-case { display: flex; align-items: center; gap: 9px; font-size: 0.78rem; color: var(--text-dim); }
+  .ligne-case input { width: 16px; height: 16px; accent-color: #4fd980; }
+  .nav-ligne {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    border: 1px solid var(--border); border-left: 5px solid var(--border);
+    border-radius: 6px; padding: 10px 13px; margin-bottom: 8px; font-size: 0.82rem;
+  }
+  .nav-ligne.ok { border-left-color: var(--accent); }
+  .nav-ligne.ko { border-left-color: var(--err); }
+  .nav-ligne.vide { border-left-color: var(--text-dim); }
+  .nav-ligne .nom { font-weight: 700; min-width: 130px; }
+  .nav-ligne .moi { color: var(--accent); font-size: 0.7rem; }
+  .nav-ligne .quand { color: var(--text-dim); font-size: 0.72rem; }
   .vide { color: var(--text-dim); font-size: 0.85rem; }
   details { margin-top: 12px; }
   summary { cursor: pointer; color: var(--text-dim); font-size: 0.8rem; }
@@ -198,7 +219,7 @@
       <h1>Changer mes tokens</h1>
       <span class="origin" id="origine"></span>
     </div>
-    <div class="version" id="badge-version">v1.4.0</div>
+    <div class="version" id="badge-version">v1.5.0</div>
   </div>
 
   <!-- 1. Détection -->
@@ -266,6 +287,38 @@
     <div class="status" id="statut-diag"></div>
   </div>
 
+  <!-- 5. Suivi des quatre navigateurs -->
+  <div class="card">
+    <h2>5 · Les quatre navigateurs</h2>
+    <p class="note">
+      Un navigateur ne peut pas lire le stockage d'un autre. Chacun publie donc
+      son état (empreinte du token, date) dans un petit fichier partagé sur GitHub,
+      et cette page relit le fichier pour comparer les quatre.
+      Aucun token n'y est écrit : seulement son empreinte.
+    </p>
+    <div class="sync-config">
+      <label>Ce navigateur est
+        <select id="sync-nav"></select>
+      </label>
+      <label>Dépôt (utilisateur/dépôt)
+        <input type="text" id="sync-depot" placeholder="Hammerinhank/codehtml" spellcheck="false">
+      </label>
+      <label>Fichier
+        <input type="text" id="sync-fichier" placeholder="etat-tokens.json" spellcheck="false">
+      </label>
+    </div>
+    <div class="row-btns" style="margin-top:11px">
+      <button class="primary" id="btn-publier">📤 Publier l'état de ce navigateur</button>
+      <button id="btn-relire">📥 Relire l'état des quatre</button>
+    </div>
+    <label class="ligne-case" style="margin-top:10px">
+      <input type="checkbox" id="sync-auto" checked>
+      <span>Publier automatiquement après chaque remplacement de token</span>
+    </label>
+    <div id="tableau-navigateurs" style="margin-top:14px"></div>
+    <div class="status" id="statut-sync"></div>
+  </div>
+
   <!-- Fenêtre d'aide à la régénération -->
   <div class="overlay" id="overlay-gh">
     <div class="modal">
@@ -300,7 +353,7 @@
 
 <script>
   // ---- Version : à incrémenter à chaque évolution ----
-  const APP_VERSION = "1.4.0";
+  const APP_VERSION = "1.5.0";
   document.getElementById("badge-version").textContent = "v" + APP_VERSION;
   document.getElementById("origine").textContent = location.origin;
 
@@ -772,6 +825,9 @@
         + reste
         + " Utilise « Tester les tokens trouvés » pour confirmer auprès de GitHub.",
         (erreurs.length || restants > 1) ? "warn" : "ok");
+      // Publication automatique de l'état de ce navigateur, pour que les
+      // trois autres sachent où en est celui-ci.
+      if ($("sync-auto").checked && ok > 0) publierEtat(true);
     });
   });
 
@@ -855,6 +911,10 @@
       "Interroge l'API GitHub avec le token saisi et affiche le compte auquel il appartient. Permet de s'assurer qu'il est valide et bien collé avant de le diffuser partout."],
     "btn-appliquer": ["Remplacer",
       "Écrit le nouveau token dans toutes les entrées cochées. Une valeur directe est réécrite telle quelle ; un champ niché dans un objet JSON est modifié en place, sans toucher au reste de l'objet."],
+    "btn-publier": ["Publier l'état de ce navigateur",
+      "Écrit dans un fichier partagé du dépôt GitHub l'empreinte du token utilisé ici, avec la date. Aucun token n'y figure. C'est ce qui permet aux quatre navigateurs de se comparer entre eux."],
+    "btn-relire": ["Relire l'état des quatre",
+      "Relit le fichier partagé et affiche, pour chacun des quatre navigateurs, s'il utilise le même token que celui-ci, un token différent, ou s'il n'a jamais publié son état."],
     "btn-inventaire": ["Lister toutes les clés",
       "Affiche l'intégralité du stockage local, y compris les clés où aucun token n'a été reconnu. Utile pour repérer une app qui stockerait son token sous une forme inhabituelle."],
     "btn-copier-rapport": ["Copier le rapport",
@@ -928,6 +988,209 @@
     window.addEventListener("scroll", cacher, true);
     window.addEventListener("blur", cacher);
   })();
+
+  // =========================================================================
+  //  v1.5.0 — Suivi des quatre navigateurs
+  //  Un navigateur ne peut pas lire le stockage local d'un autre : chacun
+  //  publie donc son état dans un fichier partagé du dépôt GitHub, et cette
+  //  page relit ce fichier pour comparer. Seule l'EMPREINTE du token y est
+  //  écrite, jamais sa valeur.
+  // =========================================================================
+
+  const NAVIGATEURS = ["imac chrome", "imac safari", "iphone chrome", "iphone safari"];
+  const LS_SYNC_NAV = "tokens_sync_navigateur";
+  const LS_SYNC_DEPOT = "tokens_sync_depot";
+  const LS_SYNC_FICHIER = "tokens_sync_fichier";
+
+  // Reconnaissance automatique, corrigeable à la main dans la liste.
+  function detecterNavigateur() {
+    const ua = navigator.userAgent;
+    const mobile = /iPhone|iPod|iPad/.test(ua)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const appareil = mobile ? "iphone" : "imac";
+    let moteur;
+    if (/CriOS|EdgiOS|FxiOS/.test(ua)) moteur = /CriOS/.test(ua) ? "chrome" : "safari";
+    else if (/Chrome\//.test(ua) && !/Edg\/|OPR\//.test(ua)) moteur = "chrome";
+    else moteur = "safari";
+    return appareil + " " + moteur;
+  }
+
+  function initSync() {
+    const sel = $("sync-nav");
+    NAVIGATEURS.forEach(n => {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n;
+      sel.appendChild(o);
+    });
+    sel.value = localStorage.getItem(LS_SYNC_NAV) || detecterNavigateur();
+    sel.addEventListener("change", () => localStorage.setItem(LS_SYNC_NAV, sel.value));
+    $("sync-depot").value = localStorage.getItem(LS_SYNC_DEPOT) || "Hammerinhank/codehtml";
+    $("sync-fichier").value = localStorage.getItem(LS_SYNC_FICHIER) || "etat-tokens.json";
+    $("sync-depot").addEventListener("change", () => localStorage.setItem(LS_SYNC_DEPOT, $("sync-depot").value.trim()));
+    $("sync-fichier").addEventListener("change", () => localStorage.setItem(LS_SYNC_FICHIER, $("sync-fichier").value.trim()));
+  }
+
+  // Le token à utiliser pour écrire sur GitHub, et dont on publie
+  // l'empreinte : celui saisi à l'étape 3 s'il y en a un, sinon le token
+  // majoritaire trouvé dans ce navigateur.
+  function tokenCourant() {
+    const saisi = $("nouveau-token").value.trim();
+    if (saisi) return saisi;
+    const vrais = groupes.filter(g => !g.suspect);
+    return vrais.length ? vrais[0].valeur : "";
+  }
+
+  function cibleSync() {
+    const depot = ($("sync-depot").value.trim() || "Hammerinhank/codehtml").split("/");
+    return { owner: depot[0], repo: depot[1] || "", fichier: $("sync-fichier").value.trim() || "etat-tokens.json" };
+  }
+
+  function b64(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function deb64(str) { return decodeURIComponent(escape(atob(str.replace(/\n/g, "")))); }
+
+  async function lireEtat(token) {
+    const c = cibleSync();
+    const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`
+      + `/contents/${encodeURIComponent(c.fichier)}?_=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: { "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json" }
+    });
+    if (res.status === 404) return { existe: false, sha: null, etat: { navigateurs: {} } };
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      throw new Error(`${res.status} ${j.message || ""}`);
+    }
+    const j = await res.json();
+    let etat;
+    try { etat = JSON.parse(deb64(j.content || "")); } catch (e) { etat = { navigateurs: {} }; }
+    if (!etat.navigateurs) etat.navigateurs = {};
+    return { existe: true, sha: j.sha, etat };
+  }
+
+  async function publierEtat(silencieux) {
+    const token = tokenCourant();
+    if (!token) { setStatut($("statut-sync"), "Aucun token disponible : colle le nouveau token à l'étape 3, ou lance l'analyse.", "error"); return; }
+    const c = cibleSync();
+    if (!c.owner || !c.repo) { setStatut($("statut-sync"), "Indique le dépôt sous la forme utilisateur/dépôt.", "error"); return; }
+
+    setStatut($("statut-sync"), "Publication de l'état de ce navigateur…");
+    try {
+      const { sha, etat } = await lireEtat(token);
+      const emp = await empreinteDe(token);
+      const nav = $("sync-nav").value;
+      const vrais = groupes.filter(g => !g.suspect);
+      etat.outil = "Changer mes tokens";
+      etat.navigateurs[nav] = {
+        empreinte: emp,
+        masque: masquer(token),
+        date: new Date().toISOString(),
+        entrees: entrees.filter(e => !e.suspect).length,
+        tokensDistincts: vrais.length,
+        ua: navigator.userAgent.slice(0, 120)
+      };
+
+      const url = `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${encodeURIComponent(c.fichier)}`;
+      const corps = {
+        message: `État des tokens — ${nav} — ${new Date().toISOString()}`,
+        content: b64(JSON.stringify(etat, null, 2))
+      };
+      if (sha) corps.sha = sha;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Accept": "application/vnd.github+json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(corps)
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(`${res.status} ${j.message || ""}`);
+      }
+      afficherNavigateurs(etat, emp);
+      setStatut($("statut-sync"), `État de « ${nav} » publié (empreinte ${emp}).`, "ok");
+    } catch (err) {
+      setStatut($("statut-sync"), "Échec de la publication : " + err.message
+        + " — vérifie que ce token a le droit d'écriture sur le dépôt indiqué.", "error");
+    }
+  }
+
+  async function relireEtat() {
+    const token = tokenCourant();
+    if (!token) { setStatut($("statut-sync"), "Aucun token disponible pour interroger GitHub.", "error"); return; }
+    setStatut($("statut-sync"), "Lecture du fichier partagé…");
+    try {
+      const { existe, etat } = await lireEtat(token);
+      if (!existe) {
+        setStatut($("statut-sync"), "Le fichier n'existe pas encore : publie l'état de ce navigateur pour le créer.", "warn");
+        afficherNavigateurs({ navigateurs: {} }, await empreinteDe(token));
+        return;
+      }
+      const emp = await empreinteDe(token);
+      afficherNavigateurs(etat, emp);
+      const connus = NAVIGATEURS.filter(n => etat.navigateurs[n]);
+      const differents = connus.filter(n => etat.navigateurs[n].empreinte !== emp);
+      const manquants = NAVIGATEURS.filter(n => !etat.navigateurs[n]);
+      let msg = `${connus.length}/4 navigateur(s) renseigné(s).`;
+      if (differents.length) msg += ` ⚠ À mettre à jour : ${differents.join(", ")}.`;
+      if (manquants.length) msg += ` Jamais publié : ${manquants.join(", ")}.`;
+      if (!differents.length && !manquants.length) msg += " ✓ Les quatre navigateurs partagent le même token.";
+      setStatut($("statut-sync"), msg, (differents.length || manquants.length) ? "warn" : "ok");
+    } catch (err) {
+      setStatut($("statut-sync"), "Échec de la lecture : " + err.message, "error");
+    }
+  }
+
+  function afficherNavigateurs(etat, empreinteLocale) {
+    const zone = $("tableau-navigateurs");
+    zone.innerHTML = "";
+    const moi = $("sync-nav").value;
+    for (const nav of NAVIGATEURS) {
+      const info = etat.navigateurs ? etat.navigateurs[nav] : null;
+      const d = document.createElement("div");
+      const nom = document.createElement("span");
+      nom.className = "nom";
+      nom.textContent = nav;
+      d.appendChild(nom);
+
+      if (!info) {
+        d.className = "nav-ligne vide";
+        const b = document.createElement("span");
+        b.className = "badge";
+        b.textContent = "jamais publié";
+        d.appendChild(b);
+      } else {
+        const memeToken = info.empreinte === empreinteLocale;
+        d.className = "nav-ligne " + (memeToken ? "ok" : "ko");
+        const b = document.createElement("span");
+        b.className = "badge " + (memeToken ? "ok" : "ko");
+        b.textContent = memeToken ? "✓ même token" : "⚠ token différent — à mettre à jour";
+        d.appendChild(b);
+        const h = document.createElement("span");
+        h.className = "hash";
+        h.textContent = "empreinte " + info.empreinte;
+        d.appendChild(h);
+        const q = document.createElement("span");
+        q.className = "quand";
+        q.textContent = "publié le " + new Date(info.date).toLocaleString("fr-FR")
+          + (info.entrees ? ` · ${info.entrees} entrée(s)` : "");
+        d.appendChild(q);
+      }
+
+      if (nav === moi) {
+        const m = document.createElement("span");
+        m.className = "moi";
+        m.textContent = "← ce navigateur";
+        d.appendChild(m);
+      }
+      zone.appendChild(d);
+    }
+  }
+
+  initSync();
+  $("btn-publier").addEventListener("click", () => publierEtat(false));
+  $("btn-relire").addEventListener("click", relireEtat);
 
   // Analyse automatique au chargement
   scanner();
